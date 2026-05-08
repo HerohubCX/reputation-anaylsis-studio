@@ -33,7 +33,7 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 # ── Flask app ──────────────────────────────────────────────────────────────
-app = Flask(__name__)
+app = Flask(__name__, template_folder='.')
 app.secret_key = os.urandom(24)
 
 scheduler = APScheduler()
