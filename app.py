@@ -844,10 +844,10 @@ scheduler.start()
 apply_schedule(cfg)
 
 if __name__ == "__main__":
-      # Copy bg image to static if present
-      src_bg = BASE_DIR.parent.parent / "bg_image.txt"  # session working dir
+    # Copy bg image to static if present
+    src_bg = BASE_DIR.parent.parent / "bg_image.txt"  # session working dir
     if src_bg.exists() and not BG_FILE.exists():
-              BG_FILE.write_text(src_bg.read_text(encoding="utf-8"), encoding="utf-8")
+        BG_FILE.write_text(src_bg.read_text(encoding="utf-8"), encoding="utf-8")
 
     import webbrowser, threading as _t
     _t.Timer(1.2, lambda: webbrowser.open("http://localhost:5000")).start()
