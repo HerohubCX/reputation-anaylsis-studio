@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Dashboards — HeroHub Pipeline{% endblock %}
+{% block page_title %}Generated Dashboards{% endblock %}
+
+{% block content %}
+{% if runs %}
+<div class="card">
+  <div class="card-header"><div class="card-title">All Dashboards</div></div>
+  <table class="table">
+    <thead>
+      <tr><th>Dealer</th><th>Generated</th><th>Dashboard</th></tr>
+    </thead>
+    <tbody>
+      {% for r in runs %}
+      <tr>
+        <td style="font-weight:600;color:var(--text1)">{{ r.dealer_name }}</td>
+        <td style="color:var(--text3)">{{ r.finished_at[:16].replace('T',' ') if r.finished_at else '—' }}</td>
+        <td>
+          <a href="/output/dashboards/{{ r.dashboard }}" target="_blank" class="btn btn-primary btn-sm">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Open Dashboard
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">📊</div>
+  <div class="empty-title">No dashboards yet</div>
+  <div class="empty-sub">Run the pipeline for a dealer to generate your first dashboard.</div>
+</div>
+{% endif %}
+{% endblock %}

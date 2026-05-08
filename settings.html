@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Settings — HeroHub Pipeline{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+<form method="POST" action="/settings">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;max-width:860px">
+
+  <!-- API Keys -->
+  <div class="card" style="grid-column:1/-1">
+    <div class="card-header"><div class="card-title">API Keys</div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <div class="form-group">
+        <label class="form-label">Apify API Token</label>
+        <input type="password" name="apify_token" class="form-input"
+               value="{{ config.get('apify_token','') }}" placeholder="apify_api_…" autocomplete="off">
+        <div class="form-hint">Found in your Apify console → Settings → Integrations</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Apify Actor ID</label>
+        <input type="text" name="apify_actor_id" class="form-input"
+               value="{{ config.get('apify_actor_id','compass/google-maps-reviews-scraper') }}"
+               placeholder="compass/google-maps-reviews-scraper">
+        <div class="form-hint">The scraper actor you use in Apify. Copy from the actor URL.</div>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Claude (Anthropic) API Key</label>
+        <input type="password" name="claude_api_key" class="form-input"
+               value="{{ config.get('claude_api_key','') }}" placeholder="sk-ant-…" autocomplete="off">
+        <div class="form-hint">Found at console.anthropic.com → API Keys. Uses claude-opus-4-6 for analysis.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schedule -->
+  <div class="card">
+    <div class="card-header"><div class="card-title">Automatic Schedule</div></div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" name="schedule_enabled" value="1"
+               {% if config.get('schedule_enabled') %}checked{% endif %}
+               style="width:16px;height:16px;accent-color:var(--teal)">
+        <span style="font-size:12px;font-weight:600;color:var(--text1)">Enable weekly auto-run</span>
+      </label>
+      <div class="form-hint" style="margin-top:6px">When enabled, all dealers will be processed automatically on the day and time below.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <div class="form-group">
+        <label class="form-label">Day of Week</label>
+        <select name="schedule_day" class="form-input">
+          {% for day in ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] %}
+          <option value="{{ day }}" {% if config.get('schedule_day','monday') == day %}selected{% endif %}>
+            {{ day|capitalize }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Hour (24h)</label>
+        <select name="schedule_hour" class="form-input">
+          {% for h in range(24) %}
+          <option value="{{ h }}" {% if config.get('schedule_hour',7)|int == h %}selected{% endif %}>
+            {{ '%02d'|format(h) }}:00
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pipeline settings -->
+  <div class="card">
+    <div class="card-header"><div class="card-title">Pipeline Settings</div></div>
+    <div class="form-group">
+      <label class="form-label">Max Reviews Per Dealer</label>
+      <input type="number" name="max_reviews" class="form-input"
+             value="{{ config.get('max_reviews_per_dealer', 500) }}" min="50" max="2000">
+      <div class="form-hint">More reviews = better analysis but slower runs. 500 is a good balance.</div>
+    </div>
+    <div style="margin-top:1rem;padding:1rem;background:var(--teal-bg);border-radius:8px;border:1px solid var(--border-teal or rgba(0,184,160,0.2))">
+      <div style="font-size:11px;font-weight:700;color:var(--teal-d);margin-bottom:.3rem">Estimated cost per dealer</div>
+      <div style="font-size:11px;color:var(--text2)">Apify: ~$0.10–0.30 per run &nbsp;·&nbsp; Claude API: ~$0.05–0.15 per analysis</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">Total: roughly <strong>$0.15–0.45 per dealer per run</strong></div>
+    </div>
+  </div>
+
+  <div style="grid-column:1/-1;display:flex;gap:8px">
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+    <a href="/" class="btn btn-secondary">Cancel</a>
+  </div>
+
+</div>
+</form>
+{% endblock %}

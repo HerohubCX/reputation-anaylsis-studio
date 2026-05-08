@@ -1,0 +1,691 @@
+{% extends "base.html" %}
+{% block title %}Dealers — HeroHub Pipeline{% endblock %}
+{% block page_title %}Reputation Report Studio{% endblock %}
+
+{% block extra_style %}
+/* ── Date Range Selector ── */
+.range-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+.range-option {
+  position: relative;
+}
+.range-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.range-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 8px;
+  border: 1.5px solid var(--border2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .15s;
+  text-align: center;
+  background: var(--surface);
+}
+.range-label:hover {
+  border-color: var(--teal);
+  background: var(--teal-bg);
+}
+.range-option input:checked + .range-label {
+  border-color: var(--teal);
+  background: var(--teal-bg);
+  color: var(--teal-d);
+}
+.range-label-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text1);
+  line-height: 1;
+  margin-bottom: 3px;
+}
+.range-option input:checked + .range-label .range-label-title {
+  color: var(--teal-d);
+}
+.range-label-sub {
+  font-size: 10px;
+  color: var(--text3);
+}
+.range-option input:checked + .range-label .range-label-sub {
+  color: var(--teal-d);
+  opacity: .8;
+}
+.custom-dates {
+  display: none;
+  gap: 10px;
+  margin-bottom: 1rem;
+}
+.custom-dates.visible {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.run-modal-dealer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: .6rem .75rem;
+  background: var(--bg-alt);
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text1);
+}
+.run-modal-dealer svg { color: var(--teal); flex-shrink: 0; }
+.divider-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: .5rem;
+}
+{% endblock %}
+
+{% block topbar_right %}
+  <button class="btn btn-secondary btn-sm" onclick="document.getElementById('uploadModal').classList.add('open')">
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 10V2M5 5l3-3 3 3M3 12v1a1 1 0 001 1h8a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Import CSV
+  </button>
+  <button class="btn btn-secondary btn-sm" onclick="document.getElementById('addModal').classList.add('open')">
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    Add Dealer
+  </button>
+  <button class="btn btn-primary btn-sm" id="runAllBtn" onclick="openRunModal(null, 'All Dealers')">
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="currentColor"/></svg>
+    Run All
+  </button>
+{% endblock %}
+
+{% block content %}
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-value">{{ total_dealers }}</div>
+    <div class="stat-label">Dealers configured</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value teal">{{ total_runs }}</div>
+    <div class="stat-label">Dashboards generated</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="font-size:14px;padding-top:6px">
+      {% if config.get('schedule_enabled') %}
+        <span style="color:var(--green)">● Active</span>
+        <span style="font-size:11px;color:var(--text3);font-family:'Inter',sans-serif;font-weight:400"> — every {{ config.schedule_day|capitalize }} {{ '%02d'|format(config.schedule_hour|int) }}:00</span>
+      {% else %}
+        <span style="color:var(--text3)">— Off</span>
+      {% endif %}
+    </div>
+    <div class="stat-label">Scheduled runs</div>
+  </div>
+</div>
+
+<!-- Recent Reports -->
+{% if recent_runs %}
+<div class="card" style="margin-bottom:1.75rem">
+  <div class="card-header">
+    <div class="card-title">Recent Reports</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    {% for r in recent_runs %}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg-alt);border-radius:8px;border:1px solid var(--border)">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <span style="font-weight:600;font-size:13px;color:var(--text1)">{{ r.dealer_name }}</span>
+        <span style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace">
+          {{ r.date_range_label or 'All Years' }}
+          &nbsp;·&nbsp;
+          {{ r.finished_at[:10] if r.finished_at else '' }}
+        </span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <a href="/output/dashboards/{{ r.dashboard }}" target="_blank" class="btn btn-secondary btn-sm">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h10a1 1 0 001-1v-3M9 2h5v5M8.5 8.5L14 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          View
+        </a>
+        <a href="/pdf/{{ r.dashboard }}" target="_blank" class="btn btn-secondary btn-sm" title="Download Portrait PDF">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="2" y="5" width="12" height="8" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M5 5V3a1 1 0 011-1h4a1 1 0 011 1v2M5 11h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          PDF
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Dealer Table -->
+<div class="card">
+  <div class="card-header" id="dealerHeader" onclick="toggleDealers()" style="cursor:pointer;user-select:none">
+    <div style="display:flex;align-items:center;gap:8px">
+      <svg id="dealerChevron" width="14" height="14" viewBox="0 0 16 16" fill="none" style="transition:transform .2s;flex-shrink:0"><path d="M4 6l4 4 4-4" stroke="var(--text3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="card-title">Dealers</div>
+    </div>
+    <div onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:8px">
+      <div style="position:relative">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);pointer-events:none"><circle cx="6.5" cy="6.5" r="4" stroke="var(--text3)" stroke-width="1.5"/><path d="M11 11l2 2" stroke="var(--text3)" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <input id="dealerSearch" type="text" placeholder="Search dealers…" oninput="filterDealers()" style="padding:5px 10px 5px 28px;border:1px solid var(--border2);border-radius:6px;font-size:11px;color:var(--text1);background:var(--surface);outline:none;width:180px">
+      </div>
+    </div>
+  </div>
+
+  <div id="dealerBody">
+  {% if dealers %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Dealer Name</th>
+        <th>Place ID</th>
+        <th>Last Run</th>
+        <th>Status</th>
+        <th>Recent Reports</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="dealerTable">
+      {% for d in dealers %}
+      <tr id="row-{{ d.id }}">
+        <td style="font-weight:600;color:var(--text1)">{{ d.name }}</td>
+        <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)">{{ d.place_id }}</td>
+        <td>{{ d.last_run[:10] if d.last_run else '—' }}</td>
+        <td id="status-{{ d.id }}">
+          {% if d.last_status == 'done' %}
+            <span class="badge badge-success">✓ Done</span>
+          {% elif d.last_status == 'error' %}
+            <span class="badge badge-error" title="{{ d.last_error }}">✕ Error</span>
+          {% elif d.last_status in ('running','queued') %}
+            <span class="badge badge-running">⟳ Running</span>
+          {% else %}
+            <span class="badge badge-neutral">Not run</span>
+          {% endif %}
+        </td>
+        <td id="link-{{ d.id }}">
+          {% set runs = dealer_runs.get(d.id, []) %}
+          {% if runs %}
+            <div style="display:flex;flex-direction:column;gap:5px">
+              {% for r in runs %}
+              <div style="display:flex;align-items:center;gap:6px;white-space:nowrap">
+                <a href="/output/dashboards/{{ r.dashboard }}" target="_blank"
+                   style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--teal-d);text-decoration:none;font-weight:600">
+                  <svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h10a1 1 0 001-1v-3M9 2h5v5M8.5 8.5L14 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  {{ r.date_range_label or 'All Years' }}
+                  <span style="color:var(--text3);font-weight:400">· {{ r.finished_at[:10] if r.finished_at else '' }}</span>
+                </a>
+                <a href="/pdf/{{ r.dashboard }}" target="_blank" title="Portrait PDF"
+                   style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text3);text-decoration:none;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:var(--bg-alt);font-weight:600;flex-shrink:0">
+                  <svg width="8" height="8" viewBox="0 0 16 16" fill="none"><rect x="2" y="5" width="12" height="8" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M5 5V3a1 1 0 011-1h4a1 1 0 011 1v2M5 11h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                  PDF
+                </a>
+              </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <span style="color:var(--text3);font-size:11px">—</span>
+          {% endif %}
+        </td>
+        <td style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-primary btn-sm" id="runBtn-{{ d.id }}"
+                  onclick='openRunModal({{ d.id }}, {{ d.name | tojson }})'>
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="currentColor"/></svg>
+            Run
+          </button>
+          <button class="btn btn-sm" id="stopBtn-{{ d.id }}"
+                  onclick="stopRun({{ d.id }})"
+                  style="display:none;background:#fff0f2;color:#e53e52;border:1px solid #fecdd3">
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor"/></svg>
+            Stop
+          </button>
+          <form method="POST" action="/dealers/{{ d.id }}/delete"
+                onsubmit='return confirm("Remove {{ d.name }}?")'>
+            <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Remove">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">🏪</div>
+    <div class="empty-title">No dealers yet</div>
+    <div class="empty-sub">Add a dealer manually or import a CSV to get started.</div>
+  </div>
+  {% endif %}
+  </div><!-- end dealerBody -->
+</div>
+
+<!-- ── RUN OPTIONS MODAL ──────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="runModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title">Run Options</div>
+
+    <!-- Dealer chip -->
+    <div class="run-modal-dealer" id="runModalDealer">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2a4 4 0 100 8A4 4 0 008 2zM2 14c0-2.21 2.686-4 6-4s6 1.79 6 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <span id="runModalDealerName">—</span>
+    </div>
+
+    <!-- Date range picker -->
+    <div class="divider-label">Review Date Range</div>
+    <div class="range-grid">
+
+      <div class="range-option">
+        <input type="radio" name="date_range" id="dr_all" value="all" checked>
+        <label class="range-label" for="dr_all">
+          <span class="range-label-title">All Years</span>
+          <span class="range-label-sub">Every review ever</span>
+        </label>
+      </div>
+
+      <div class="range-option">
+        <input type="radio" name="date_range" id="dr_1yr" value="1yr">
+        <label class="range-label" for="dr_1yr">
+          <span class="range-label-title">Last 1 Year</span>
+          <span class="range-label-sub" id="sub_1yr">—</span>
+        </label>
+      </div>
+
+      <div class="range-option">
+        <input type="radio" name="date_range" id="dr_2yr" value="2yr">
+        <label class="range-label" for="dr_2yr">
+          <span class="range-label-title">Last 2 Years</span>
+          <span class="range-label-sub" id="sub_2yr">—</span>
+        </label>
+      </div>
+
+      <div class="range-option">
+        <input type="radio" name="date_range" id="dr_3yr" value="3yr">
+        <label class="range-label" for="dr_3yr">
+          <span class="range-label-title">Last 3 Years</span>
+          <span class="range-label-sub" id="sub_3yr">—</span>
+        </label>
+      </div>
+
+      <div class="range-option">
+        <input type="radio" name="date_range" id="dr_5yr" value="5yr">
+        <label class="range-label" for="dr_5yr">
+          <span class="range-label-title">Last 5 Years</span>
+          <span class="range-label-sub" id="sub_5yr">—</span>
+        </label>
+      </div>
+
+      <div class="range-option">
+        <input type="radio" name="date_range" id="dr_10yr" value="10yr">
+        <label class="range-label" for="dr_10yr">
+          <span class="range-label-title">Last 10 Years</span>
+          <span class="range-label-sub" id="sub_10yr">—</span>
+        </label>
+      </div>
+
+      <div class="range-option" style="grid-column:1/-1">
+        <input type="radio" name="date_range" id="dr_custom" value="custom" onchange="toggleCustomDates()">
+        <label class="range-label" for="dr_custom" style="flex-direction:row;gap:8px;justify-content:center">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 1v4M11 1v4M2 7h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span class="range-label-title">Custom Date Range</span>
+        </label>
+      </div>
+
+    </div>
+
+    <!-- Custom date inputs (hidden until Custom selected) -->
+    <div class="custom-dates" id="customDates">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">From</label>
+        <input type="date" id="customFrom" class="form-input">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">To</label>
+        <input type="date" id="customTo" class="form-input">
+      </div>
+    </div>
+
+    <!-- Use cached scrape -->
+    <div class="divider-label" style="margin-top:1rem">Data Source</div>
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;transition:border-color .15s;background:var(--surface)" id="cacheToggleWrap">
+      <input type="checkbox" id="useCached" onchange="document.getElementById('cacheToggleWrap').style.borderColor=this.checked?'var(--teal)':'var(--border2)'" style="accent-color:var(--teal);width:15px;height:15px;flex-shrink:0">
+      <span>
+        <span style="display:block;font-size:12px;font-weight:700;color:var(--text1)">Use last scrape</span>
+        <span style="display:block;font-size:10px;color:var(--text3);margin-top:1px" id="cacheSubLabel">Skip Apify — reuse the most recent review data</span>
+      </span>
+    </label>
+
+    <!-- Header / Footer option -->
+    <div class="divider-label" style="margin-top:1rem">Dashboard Style</div>
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;transition:border-color .15s;background:var(--surface)" id="chromeToggleWrap">
+      <input type="checkbox" id="hideChrome" onchange="document.getElementById('chromeToggleWrap').style.borderColor=this.checked?'var(--teal)':'var(--border2)'" style="accent-color:var(--teal);width:15px;height:15px;flex-shrink:0">
+      <span>
+        <span style="display:block;font-size:12px;font-weight:700;color:var(--text1)">Hide header &amp; footer</span>
+        <span style="display:block;font-size:10px;color:var(--text3);margin-top:1px">Dashboard only — no HeroHub nav bar or confidential footer</span>
+      </span>
+    </label>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('runModal').classList.remove('open')">Cancel</button>
+      <button type="button" class="btn btn-primary" id="startRunBtn" onclick="confirmRun()">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="currentColor"/></svg>
+        Start Run
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Dealer Modal -->
+<div class="modal-backdrop" id="addModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="modal-title">Add Dealer</div>
+    <form method="POST" action="/dealers/add">
+      <div class="form-group">
+        <label class="form-label">Dealer Name</label>
+        <input type="text" name="name" class="form-input" placeholder="e.g. Performance Powersports" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Google Place ID</label>
+        <input type="text" name="place_id" class="form-input" placeholder="e.g. ChIJ..." required>
+        <div class="form-hint">Find it at developers.google.com/maps/documentation/places/web-service/place-id</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location <span style="font-weight:400;color:var(--text3)">(optional)</span></label>
+        <input type="text" name="location" class="form-input" placeholder="e.g. Green Bay, WI">
+        <div class="form-hint">City/state shown on the report header. Leave blank to omit.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('addModal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add Dealer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Upload CSV Modal -->
+<div class="modal-backdrop" id="uploadModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="modal-title">Import Dealers from CSV</div>
+    <form method="POST" action="/dealers/upload" enctype="multipart/form-data">
+      <div class="form-group">
+        <label class="form-label">CSV File</label>
+        <input type="file" name="csv_file" class="form-input" accept=".csv" required>
+        <div class="form-hint">Required columns: <strong>name</strong> and <strong>place_id</strong></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('uploadModal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── State ───────────────────────────────────────────────────────────────
+let pendingDealerId   = null;   // null = Run All
+let pendingDealerName = '';
+
+// Cache metadata injected from server { dealer_id: {fetched_at, review_count} | null }
+const cacheData = {{ cache_meta | tojson }};
+
+// ── Date sub-labels ────────────────────────────────────────────────────
+function setDateSubLabels() {
+  const now = new Date();
+  const fmt  = d => d.toLocaleDateString('en-US', {month:'short', year:'numeric'});
+  const sub  = (yrs) => {
+    const from = new Date(now); from.setFullYear(from.getFullYear() - yrs);
+    return `${fmt(from)} – Now`;
+  };
+  document.getElementById('sub_1yr').textContent  = sub(1);
+  document.getElementById('sub_2yr').textContent  = sub(2);
+  document.getElementById('sub_3yr').textContent  = sub(3);
+  document.getElementById('sub_5yr').textContent  = sub(5);
+  document.getElementById('sub_10yr').textContent = sub(10);
+
+  // Default custom dates
+  const today = now.toISOString().split('T')[0];
+  const twoYrsAgo = new Date(now); twoYrsAgo.setFullYear(twoYrsAgo.getFullYear()-2);
+  document.getElementById('customTo').value   = today;
+  document.getElementById('customFrom').value = twoYrsAgo.toISOString().split('T')[0];
+}
+
+function toggleCustomDates() {
+  const isCustom = document.getElementById('dr_custom').checked;
+  document.getElementById('customDates').classList.toggle('visible', isCustom);
+}
+
+// Also hide custom dates when any other radio is picked
+document.querySelectorAll('input[name="date_range"]').forEach(r => {
+  r.addEventListener('change', () => {
+    if (r.value !== 'custom') {
+      document.getElementById('customDates').classList.remove('visible');
+    }
+  });
+});
+
+// ── Open modal ─────────────────────────────────────────────────────────
+function openRunModal(dealerId, dealerName) {
+  pendingDealerId   = dealerId;
+  pendingDealerName = dealerName;
+  document.getElementById('runModalDealerName').textContent = dealerName;
+  // Reset options
+  document.getElementById('dr_all').checked = true;
+  document.getElementById('customDates').classList.remove('visible');
+  const hc = document.getElementById('hideChrome');
+  hc.checked = false;
+  document.getElementById('chromeToggleWrap').style.borderColor = 'var(--border2)';
+
+  // Cache option — show info if cache exists for this dealer
+  const uc       = document.getElementById('useCached');
+  const cacheWrap = document.getElementById('cacheToggleWrap');
+  const cacheSub  = document.getElementById('cacheSubLabel');
+  const meta      = dealerId ? cacheData[dealerId] : null;
+  uc.checked = false;
+  cacheWrap.style.borderColor = 'var(--border2)';
+  if (meta) {
+    const d   = new Date(meta.fetched_at);
+    const ago = d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+    cacheSub.textContent = `Last scraped ${ago} · ${meta.review_count} reviews`;
+    uc.disabled = false;
+    cacheWrap.style.opacity = '1';
+  } else {
+    cacheSub.textContent = 'No cached data yet — run a fresh scrape first';
+    uc.disabled = true;
+    cacheWrap.style.opacity = '0.5';
+  }
+
+  document.getElementById('runModal').classList.add('open');
+}
+
+// ── Confirm & fire ─────────────────────────────────────────────────────
+async function confirmRun() {
+  const rangeVal  = document.querySelector('input[name="date_range"]:checked').value;
+  const fromDate  = document.getElementById('customFrom').value;
+  const toDate    = document.getElementById('customTo').value;
+
+  if (rangeVal === 'custom' && (!fromDate || !toDate)) {
+    alert('Please select both a From and To date for the custom range.');
+    return;
+  }
+
+  document.getElementById('runModal').classList.remove('open');
+
+  const payload = {
+    date_range:  rangeVal,
+    hide_chrome: document.getElementById('hideChrome').checked,
+    use_cached:  document.getElementById('useCached').checked,
+  };
+  if (rangeVal === 'custom') {
+    payload.from_date = fromDate;
+    payload.to_date   = toDate;
+  }
+
+  if (pendingDealerId === null) {
+    await runAll(payload);
+  } else {
+    await runOne(pendingDealerId, pendingDealerName, payload);
+  }
+}
+
+// ── Dealer section collapse ────────────────────────────────────────────
+let dealersOpen = true;
+function toggleDealers() {
+  dealersOpen = !dealersOpen;
+  document.getElementById('dealerBody').style.display = dealersOpen ? '' : 'none';
+  document.getElementById('dealerChevron').style.transform = dealersOpen ? '' : 'rotate(-90deg)';
+}
+
+// ── Dealer search/filter ───────────────────────────────────────────────
+function filterDealers() {
+  const q = document.getElementById('dealerSearch').value.toLowerCase();
+  document.querySelectorAll('#dealerTable tr').forEach(row => {
+    const name = row.querySelector('td')?.textContent.toLowerCase() || '';
+    row.style.display = name.includes(q) ? '' : 'none';
+  });
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────
+function showToast(msg, type='info') {
+  let t = document.createElement('div');
+  t.style.cssText = `position:fixed;bottom:1.5rem;right:1.5rem;background:${type==='error'?'var(--red)':'var(--navy)'};color:#fff;padding:.75rem 1.25rem;border-radius:10px;font-size:12px;font-weight:600;z-index:999;max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,0.2)`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+// ── Range display label ────────────────────────────────────────────────
+function rangeDisplayLabel(payload) {
+  const map = { all:'All Years', '1yr':'Last 1 Yr', '2yr':'Last 2 Yrs',
+                '3yr':'Last 3 Yrs', '5yr':'Last 5 Yrs', '10yr':'Last 10 Yrs' };
+  if (payload.date_range === 'custom') return `${payload.from_date} → ${payload.to_date}`;
+  return map[payload.date_range] || payload.date_range;
+}
+
+// ── Stop run ───────────────────────────────────────────────────────────
+async function stopRun(dealerId) {
+  const stopBtn = document.getElementById(`stopBtn-${dealerId}`);
+  const activeRunId = stopBtn ? stopBtn.dataset.runId : null;
+  if (!activeRunId) return;
+  stopBtn.disabled = true; stopBtn.textContent = 'Stopping…';
+  await fetch(`/stop/${activeRunId}`, { method: 'POST' });
+}
+
+// ── Poll ───────────────────────────────────────────────────────────────
+function pollJob(runId, dealerId, dealerName, rangeLabel) {
+  const stopBtn = document.getElementById(`stopBtn-${dealerId}`);
+  if (stopBtn) { stopBtn.dataset.runId = runId; stopBtn.style.display = 'inline-flex'; stopBtn.disabled = false; stopBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor"/></svg> Stop'; }
+
+  // ── Countdown timer (target: 2 minutes — average run time) ──
+  const startTime = Date.now();
+  const TARGET_SECS = 120;
+  let lastJobStep = '';
+
+  function renderCountdown() {
+    const statusEl = document.getElementById(`status-${dealerId}`);
+    if (!statusEl) return;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const remaining = Math.max(0, TARGET_SECS - elapsed);
+    const mm = Math.floor(remaining / 60);
+    const ss = String(remaining % 60).padStart(2, '0');
+    const label = remaining > 0 ? `${mm}:${ss}` : 'Wrapping up…';
+    statusEl.innerHTML = `<span class="badge badge-running" title="${lastJobStep}">⟳ ${label}</span>`;
+  }
+  // Smooth 1-second tick so the countdown updates between server polls
+  const tick = setInterval(renderCountdown, 1000);
+  renderCountdown(); // immediate paint so user doesn't briefly see "Queued"
+
+  const interval = setInterval(async () => {
+    const res = await fetch(`/status/${runId}`);
+    const job = await res.json();
+    const statusEl    = document.getElementById(`status-${dealerId}`);
+    const linkEl      = document.getElementById(`link-${dealerId}`);
+    const btnEl       = document.getElementById(`runBtn-${dealerId}`);
+    const rangeLabelEl = document.getElementById(`range-label-${dealerId}`);
+
+    if (job.status === 'done') {
+      clearInterval(interval); clearInterval(tick);
+      if (stopBtn)     { stopBtn.style.display='none'; }
+      if (statusEl)    statusEl.innerHTML = '<span class="badge badge-success">✓ Done</span>';
+      if (linkEl && job.dashboard) linkEl.innerHTML = `<a href="/output/dashboards/${job.dashboard}" target="_blank" class="btn btn-secondary btn-sm">View</a>`;
+      if (btnEl)       { btnEl.disabled=false; btnEl.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="currentColor"/></svg> Run'; }
+      if (rangeLabelEl) rangeLabelEl.textContent = rangeLabel;
+      showToast(`✓ ${dealerName} dashboard ready!`, 'success');
+    } else if (job.status === 'stopped') {
+      clearInterval(interval); clearInterval(tick);
+      if (stopBtn)     { stopBtn.style.display='none'; }
+      if (statusEl)    statusEl.innerHTML = '<span class="badge badge-neutral">⏹ Stopped</span>';
+      if (btnEl)       { btnEl.disabled=false; btnEl.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="currentColor"/></svg> Run'; }
+      showToast(`⏹ ${dealerName} run stopped`, 'info');
+    } else if (job.status === 'error') {
+      clearInterval(interval); clearInterval(tick);
+      if (stopBtn)     { stopBtn.style.display='none'; }
+      if (statusEl)    statusEl.innerHTML = `<span class="badge badge-error" title="${job.step}">✕ Error</span>`;
+      if (btnEl)       { btnEl.disabled=false; btnEl.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="currentColor"/></svg> Retry'; }
+      showToast(`✕ ${dealerName}: ${job.step}`, 'error');
+    } else {
+      // Running — let the tick interval keep the countdown badge fresh.
+      // We just remember the latest server step for the tooltip.
+      lastJobStep = job.step || '';
+    }
+  }, 3000);
+}
+
+// ── Run one ────────────────────────────────────────────────────────────
+async function runOne(dealerId, dealerName, payload) {
+  const btn = document.getElementById(`runBtn-${dealerId}`);
+  btn.disabled = true; btn.textContent = '…';
+  document.getElementById(`status-${dealerId}`).innerHTML = '<span class="badge badge-running">⟳ Queued</span>';
+
+  const res  = await fetch(`/run/${dealerId}`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (data.error) {
+    showToast('✕ ' + data.error, 'error');
+    btn.disabled=false;
+    btn.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="currentColor"/></svg> Run';
+    return;
+  }
+  const label = rangeDisplayLabel(payload);
+  pollJob(data.run_id, dealerId, dealerName, label);
+  showToast(`Started pipeline for ${dealerName} · ${label}`);
+}
+
+// ── Run all ────────────────────────────────────────────────────────────
+async function runAll(payload) {
+  const btn = document.getElementById('runAllBtn');
+  btn.disabled = true; btn.textContent = 'Starting…';
+  const res  = await fetch('/run/all', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (data.error) {
+    showToast('✕ ' + data.error, 'error');
+    btn.disabled=false;
+    btn.innerHTML='<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="currentColor"/></svg> Run All';
+    return;
+  }
+  const label = rangeDisplayLabel(payload);
+  showToast(`Started ${data.count} runs · ${label}`);
+  btn.disabled=false;
+  btn.innerHTML='<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="currentColor"/></svg> Run All';
+  setTimeout(() => location.reload(), 5000);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+setDateSubLabels();
+</script>
+{% endblock %}

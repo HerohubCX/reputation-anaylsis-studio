@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Run History — HeroHub Pipeline{% endblock %}
+{% block page_title %}Run History{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header"><div class="card-title">Last 100 Runs</div></div>
+  {% if runs %}
+  <table class="table">
+    <thead>
+      <tr><th>Dealer</th><th>Started</th><th>Finished</th><th>Status</th><th>Dashboard</th></tr>
+    </thead>
+    <tbody>
+      {% for r in runs %}
+      <tr>
+        <td style="font-weight:600;color:var(--text1)">{{ r.dealer_name }}</td>
+        <td style="color:var(--text3);font-size:11px">{{ r.started_at[:16].replace('T',' ') if r.started_at else '—' }}</td>
+        <td style="color:var(--text3);font-size:11px">{{ r.finished_at[:16].replace('T',' ') if r.finished_at else '—' }}</td>
+        <td>
+          {% if r.status == 'done' %}<span class="badge badge-success">✓ Done</span>
+          {% elif r.status == 'error' %}<span class="badge badge-error" title="{{ r.error }}">✕ Error</span>
+          {% elif r.status == 'running' %}<span class="badge badge-running">⟳ Running</span>
+          {% else %}<span class="badge badge-neutral">{{ r.status }}</span>{% endif %}
+        </td>
+        <td>
+          {% if r.dashboard %}
+            <a href="/output/dashboards/{{ r.dashboard }}" target="_blank" class="btn btn-secondary btn-sm">View</a>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">🕐</div>
+    <div class="empty-title">No runs yet</div>
+    <div class="empty-sub">Pipeline runs will appear here once you start generating dashboards.</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
