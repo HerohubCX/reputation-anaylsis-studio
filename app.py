@@ -834,22 +834,23 @@ def history():
 
 # ── Boot ───────────────────────────────────────────────────────────────────
 
+# Always run at startup (works with both gunicorn and direct execution)
+init_db()
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+cfg = load_config()
+scheduler.init_app(app)
+scheduler.start()
+apply_schedule(cfg)
+
 if __name__ == "__main__":
-    init_db()
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    # Copy bg image to static if present
-    src_bg = BASE_DIR.parent.parent / "bg_image.txt"  # session working dir
+      # Copy bg image to static if present
+      src_bg = BASE_DIR.parent.parent / "bg_image.txt"  # session working dir
     if src_bg.exists() and not BG_FILE.exists():
-        BG_FILE.write_text(src_bg.read_text(encoding="utf-8"), encoding="utf-8")
-
-    cfg = load_config()
-    scheduler.init_app(app)
-    scheduler.start()
-    apply_schedule(cfg)
+              BG_FILE.write_text(src_bg.read_text(encoding="utf-8"), encoding="utf-8")
 
     import webbrowser, threading as _t
     _t.Timer(1.2, lambda: webbrowser.open("http://localhost:5000")).start()
 
-    logger.info("🚀 HeroHub Pipeline running at http://localhost:5000")
+    logger.info("HeroHub Pipeline running at http://localhost:5000")
     app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
