@@ -22,7 +22,7 @@ from flask_apscheduler import APScheduler
 # ── Paths ──────────────────────────────────────────────────────────────────
 BASE_DIR    = Path(__file__).parent
 CONFIG_FILE = BASE_DIR / "config.json"
-DB_FILE     = BASE_DIR / "data" / "pipeline.db"
+DB_FILE     = BASE_DIR / "pipeline.db"
 OUTPUT_DIR  = BASE_DIR / "output" / "dashboards"
 CACHE_DIR   = BASE_DIR / "data" / "review_cache"
 BG_FILE     = BASE_DIR / "static" / "bg_image.txt"
